@@ -288,7 +288,10 @@ async function exchangeOAuthCode(code, state) {
     body: JSON.stringify({ grant_type:'authorization_code', client_id:ATLASSIAN_CLIENT_ID,
       code, redirect_uri:ATLASSIAN_REDIRECT_URI, code_verifier:verifier }),
   });
-  if (!resp.ok) throw new Error('Token exchange failed');
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(`Token exchange failed (${resp.status}): ${err.error_description || err.error || 'unknown'}`);
+  }
   const { access_token, refresh_token, expires_in } = await resp.json();
   localStorage.setItem('atlassian_token', JSON.stringify({
     access_token, refresh_token, expires_at: Date.now() + expires_in * 1000,
