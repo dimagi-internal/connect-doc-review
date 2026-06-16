@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect: Shared Docs Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #f7f8fa; color: #1a1d23; line-height: 1.5; }
+  header { background: #fff; border-bottom: 1px solid #e2e5ea; padding: 20px 32px; display: flex; align-items: baseline; gap: 16px; }
+  header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; }
+  header a { font-size: 0.8rem; color: #5c6bc0; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 24px 64px; }
+  .section { margin-bottom: 40px; }
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .status-pill { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; }
+  .pill-implementation  { background: #ede7f6; color: #4527a0; }
+  .pill-tech-spec       { background: #e3f2fd; color: #0d47a1; }
+  .pill-req-validation  { background: #e8f5e9; color: #1b5e20; }
+  .pill-prioritized     { background: #fff8e1; color: #e65100; }
+  .pill-defining        { background: #e8f4fd; color: #1565c0; }
+  .count { font-size: 0.78rem; color: #8a92a0; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e5ea; border-radius: 8px; overflow: hidden; font-size: 0.875rem; }
+  th { background: #f0f2f5; text-align: left; font-weight: 600; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; color: #6b7280; padding: 9px 14px; border-bottom: 1px solid #e2e5ea; }
+  td { padding: 10px 14px; border-bottom: 1px solid #f0f2f5; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .ticket-key { font-family: 'SFMono-Regular', 'Consolas', monospace; font-size: 0.75rem; color: #5c6bc0; text-decoration: none; white-space: nowrap; }
+  .ticket-key:hover { text-decoration: underline; }
+  .doc-link { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; color: #5c6bc0; text-decoration: none; }
+  .doc-link:hover { text-decoration: underline; }
+  .doc-icon { flex-shrink: 0; width: 14px; height: 14px; opacity: 0.65; }
+  .doc-title.loading { color: #aaa; font-style: italic; }
+  .doc-title.error { color: #999; font-style: italic; }
+
+  /* Editable text cells */
+  .editable {
+    min-width: 0; cursor: text; border-radius: 4px;
+    padding: 3px 6px; margin: -3px -6px; color: #1a1d23;
+    font-size: 0.8rem; transition: background 0.1s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+  }
+  .editable:hover { background: #f0f2f5; }
+  .editable:focus { background: #fff; outline: 2px solid #5c6bc0; outline-offset: 0; white-space: normal; }
+  .editable.empty { color: #bbb; font-style: italic; }
+  .editable.empty:focus { color: #1a1d23; font-style: normal; }
+  .saved-flash { animation: flash 0.4s ease; }
+  @keyframes flash { 0%,100% { background: transparent; } 50% { background: #e8f5e9; } }
+
+  /* Date picker */
+  .date-input {
+    border: none; background: transparent; font-family: inherit;
+    font-size: 0.8rem; color: #1a1d23; cursor: pointer;
+    padding: 3px 6px; margin: -3px -6px; border-radius: 4px;
+    width: calc(100% + 12px); transition: background 0.1s;
+  }
+  .date-input:hover { background: #f0f2f5; }
+  .date-input:focus { background: #fff; outline: 2px solid #5c6bc0; outline-offset: 0; }
+  .date-input::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
+  .date-input.empty { color: #bbb; }
+
+  /* Platform badges */
+  .plat-cell { display: flex; gap: 4px; flex-wrap: wrap; }
+  .plat { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.03em; padding: 2px 6px; border-radius: 10px; white-space: nowrap; }
+  .plat-web { background: #e0f2fe; color: #0369a1; }
+  .plat-mob { background: #fce7f3; color: #9d174d; }
+  .plat-empty { color: #bbb; font-size: 0.8rem; }
+  .pill-done-review { background: #e8f5e9; color: #2e7d32; }
+
+  /* Tabs */
+  header { justify-content: space-between; align-items: center; }
+  .tab-nav { display: flex; gap: 2px; }
+  .tab-btn { background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500; color: #6b7280; padding: 6px 14px; border-radius: 6px; transition: background 0.1s, color 0.1s; }
+  .tab-btn:hover { background: #f0f2f5; color: #1a1d23; }
+  .tab-btn.active { background: #ede7f6; color: #4527a0; }
+
+  /* Docs to Review */
+  .review-toolbar { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+  .btn-add { background: #5c6bc0; color: #fff; border: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500; padding: 8px 16px; border-radius: 6px; transition: background 0.15s; }
+  .btn-add:hover { background: #4527a0; }
+
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal-backdrop.hidden { display: none; }
+  .modal { background: #fff; border-radius: 10px; padding: 28px 32px; width: 520px; max-width: calc(100vw - 32px); box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+  .modal h2 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+  .form-row input, .form-row textarea { width: 100%; font-family: inherit; font-size: 0.875rem; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 10px; color: #1a1d23; transition: border 0.1s; resize: vertical; }
+  .form-row input:focus, .form-row textarea:focus { outline: none; border-color: #5c6bc0; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .btn-cancel { background: #f0f2f5; border: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500; padding: 8px 16px; border-radius: 6px; color: #374151; }
+  .btn-cancel:hover { background: #e2e5ea; }
+  .btn-save { background: #5c6bc0; color: #fff; border: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500; padding: 8px 16px; border-radius: 6px; }
+  .btn-save:hover { background: #4527a0; }
+
+  /* Review table */
+  .review-empty { color: #9ca3af; font-size: 0.875rem; text-align: center; padding: 48px 0; }
+  #review-list table { width: 100%; }
+  #review-list thead th { white-space: nowrap; }
+  .review-title-cell a { color: #5c6bc0; text-decoration: none; font-weight: 500; }
+  .review-title-cell a:hover { text-decoration: underline; }
+  .review-summary-cell { color: #374151; font-size: 0.8rem; line-height: 1.5; max-width: 280px; }
+  .btn-icon { background: none; border: 1px solid #e2e5ea; border-radius: 5px; cursor: pointer; padding: 3px 7px; font-size: 0.72rem; color: #6b7280; transition: background 0.1s; }
+  .btn-icon:hover { background: #f0f2f5; }
+  .btn-icon.delete:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+  .btn-icon.btn-complete:hover { background: #e8f5e9; border-color: #86efac; color: #15803d; }
+  .review-actions { display: flex; gap: 4px; white-space: nowrap; }
+
+
+  /* Auth */
+  #auth-gate { position: fixed; inset: 0; background: #f7f8fa; display: flex; align-items: center; justify-content: center; z-index: 200; }
+  #auth-gate.hidden { display: none; }
+  .auth-card { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 40px 48px; text-align: center; max-width: 360px; width: 100%; }
+  .auth-card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
+  .auth-card p { font-size: 0.85rem; color: #6b7280; margin-bottom: 24px; }
+  .btn-google { display: inline-flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px 20px; font-family: inherit; font-size: 0.875rem; font-weight: 500; cursor: pointer; color: #374151; transition: background 0.1s; }
+  .btn-google:hover { background: #f9fafb; }
+  .auth-error { font-size: 0.8rem; color: #dc2626; margin-top: 14px; min-height: 1.2em; }
+  .user-badge { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #6b7280; }
+  .user-badge img { width: 24px; height: 24px; border-radius: 50%; }
+  .btn-signout { background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; color: #9ca3af; padding: 0; }
+  .btn-signout:hover { color: #374151; }
+
+</style>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+<!-- Auth gate -->
+<div id="auth-gate">
+  <div class="auth-card">
+    <h2>Connect: Shared Docs Tracker</h2>
+    <p>Sign in with your Dimagi Google account to continue.</p>
+    <button class="btn-google" id="btn-google-signin">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+      Sign in with Google
+    </button>
+    <p class="auth-error" id="auth-error"></p>
+  </div>
+</div>
+
+<header>
+  <div style="display:flex;align-items:baseline;gap:16px;">
+    <h1>Connect: Shared Docs Tracker</h1>
+    <a href="https://dimagi.atlassian.net/jira/polaris/projects/CCC/ideas/view/12876619" target="_blank">↗ Open in Jira</a>
+  </div>
+  <div class="user-badge" id="user-badge" style="display:none">
+    <img id="user-photo" src="" alt="">
+    <span id="user-name"></span>
+    <button class="btn-signout" id="btn-signout">Sign out</button>
+  </div>
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="docs-review">Docs to Review</button>
+    <button class="tab-btn" data-tab="spec-docs">Design Docs</button>
+  </nav>
+</header>
+<main>
+<div id="tab-spec-docs" class="tab-panel" style="display:none">
+
+<div class="section">
+  <div class="section-header"><span class="status-pill pill-prioritized">Prioritized</span><span class="count">1 ticket</span></div>
+  <table>
+    <thead><tr><th style="width:90px">Ticket</th><th>Summary</th><th style="width:200px">Doc</th><th style="width:120px">Owner</th><th style="width:110px">Platform</th></tr></thead>
+    <tbody>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-237" target="_blank">CCC-237</a></td><td>New feature announcements on mobile</td><td><a class="doc-link" href="https://docs.google.com/document/d/1mXRQDwJIleLXoqgbi8bJa5Fsxd_YIhgr5O2i7Qfr3cA/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1mXRQDwJIleLXoqgbi8bJa5Fsxd_YIhgr5O2i7Qfr3cA/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Brendon Peter">Brendon</span></td><td><div class="plat-cell"><span class="plat plat-mob">Mobile</span></div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="status-pill pill-defining">Defining Requirements</span><span class="count">6 tickets</span></div>
+  <table>
+    <thead><tr><th style="width:90px">Ticket</th><th>Summary</th><th style="width:200px">Doc</th><th style="width:120px">Owner</th><th style="width:110px">Platform</th></tr></thead>
+    <tbody>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-311" target="_blank">CCC-311</a></td><td>Improve limits</td><td><a class="doc-link" href="https://docs.google.com/document/d/1Z796kdZUBzsWA3Bw2Et9Q5Lg-zsRO5oX5ZbMe1lgKzo/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1Z796kdZUBzsWA3Bw2Et9Q5Lg-zsRO5oX5ZbMe1lgKzo/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span><span class="plat plat-mob">Mobile</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-310" target="_blank">CCC-310</a></td><td>Streamline the Opportunity Creation process</td><td><a class="doc-link" href="https://claude.ai/design/p/019e21c3-c30d-7640-a170-1197803fe52c?file=Opportunity+Setup+Wireframes.html" target="_blank"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title">Opportunity Setup Wireframes</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-307" target="_blank">CCC-307</a></td><td>Add the ability to run an Image Review on Prod to audit images collected for all interventions</td><td><a class="doc-link" href="https://docs.google.com/document/d/1UvrIuPsZxvQ_hzID-7G4KcgVGpZiRsQSeg5uRihUSko/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1UvrIuPsZxvQ_hzID-7G4KcgVGpZiRsQSeg5uRihUSko/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-306" target="_blank">CCC-306</a></td><td>Create an Audit of Audit Dashboard to display an overarching view of audits, and how they are being utilized</td><td><a class="doc-link" href="https://docs.google.com/document/d/1UdIAQBOIai2wVwF8Ft4W9FOP5-90-5TLcN941ijzfCo/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1UdIAQBOIai2wVwF8Ft4W9FOP5-90-5TLcN941ijzfCo/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-44" target="_blank">CCC-44</a></td><td>Add the ability for Delivery to self-service translatable strings for the mobile UI</td><td><a class="doc-link" href="https://docs.google.com/document/d/1GFZ1ev47C8_BCoytAJILwumus5Rp89FMQiP9jbKsHQ4/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1GFZ1ev47C8_BCoytAJILwumus5Rp89FMQiP9jbKsHQ4/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Brendon Peter">Brendon</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span><span class="plat plat-mob">Mobile</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-20" target="_blank">CCC-20</a></td><td>Mobile messaging UI/UX enhancements</td><td><a class="doc-link" href="https://docs.google.com/document/d/1Y4pQVWfdDx7dED-Swa0kBpgNOJWEwTFpSG28J1AU8pU/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1Y4pQVWfdDx7dED-Swa0kBpgNOJWEwTFpSG28J1AU8pU/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner empty">—</span></td><td><div class="plat-cell"><span class="plat plat-mob">Mobile</span></div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="status-pill pill-req-validation">Requirements Validation</span><span class="count">2 tickets</span></div>
+  <table>
+    <thead><tr><th style="width:90px">Ticket</th><th>Summary</th><th style="width:200px">Doc</th><th style="width:120px">Owner</th><th style="width:110px">Platform</th></tr></thead>
+    <tbody>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-303" target="_blank">CCC-303</a></td><td>Access Connect Messaging while in CommCare entering forms</td><td><a class="doc-link" href="https://docs.google.com/document/d/12qnp1EqQ28ap-wpKAFc_ZGCTYQoBb3SFLBNy95z4Fhw/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/12qnp1EqQ28ap-wpKAFc_ZGCTYQoBb3SFLBNy95z4Fhw/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Brendon Peter">Brendon</span></td><td><div class="plat-cell"><span class="plat plat-mob">Mobile</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-298" target="_blank">CCC-298</a></td><td>Redesign Mobile App Design, Workflow and UX</td><td><a class="doc-link" href="https://docs.google.com/document/d/1rntc16FW2Jfr6CbzNcZ9RDOxIRrmfcWNU6_d5WL1rA8/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1rntc16FW2Jfr6CbzNcZ9RDOxIRrmfcWNU6_d5WL1rA8/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Kimberly Cho">Kimberly</span></td><td><span class="plat-empty">—</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="status-pill pill-tech-spec">Technical Specification</span><span class="count">5 tickets</span></div>
+  <table>
+    <thead><tr><th style="width:90px">Ticket</th><th>Summary</th><th style="width:200px">Doc</th><th style="width:120px">Owner</th><th style="width:110px">Platform</th></tr></thead>
+    <tbody>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-328" target="_blank">CCC-328</a></td><td>Opportunity Home redesign on Mobile</td><td><a class="doc-link" href="https://docs.google.com/document/d/1rntc16FW2Jfr6CbzNcZ9RDOxIRrmfcWNU6_d5WL1rA8/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1rntc16FW2Jfr6CbzNcZ9RDOxIRrmfcWNU6_d5WL1rA8/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Kimberly Cho">Kimberly</span></td><td><div class="plat-cell"><span class="plat plat-mob">Mobile</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-309" target="_blank">CCC-309</a></td><td>Add a new role for 3rd party PMs</td><td><a class="doc-link" href="https://docs.google.com/document/d/1oORKTbPcjOUn2yr7jK5dbpvKEU8qNedBSdGpCl4QZh0/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1oORKTbPcjOUn2yr7jK5dbpvKEU8qNedBSdGpCl4QZh0/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-308" target="_blank">CCC-308</a></td><td>Simplify roles and permission hierarchy</td><td><a class="doc-link" href="https://docs.google.com/document/d/1oORKTbPcjOUn2yr7jK5dbpvKEU8qNedBSdGpCl4QZh0/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1oORKTbPcjOUn2yr7jK5dbpvKEU8qNedBSdGpCl4QZh0/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-305" target="_blank">CCC-305</a></td><td>Add the ability to trigger an OCS conversation from a task in Connect</td><td><a class="doc-link" href="https://docs.google.com/document/d/14oM8_bZ3kqBzyrn0e1_Sjiy5Uu0GLtE_TpeUhr_V2rk/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/14oM8_bZ3kqBzyrn0e1_Sjiy5Uu0GLtE_TpeUhr_V2rk/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Kimberly Cho">Kimberly</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-54" target="_blank">CCC-54</a></td><td>Solicitations</td><td><a class="doc-link" href="https://docs.google.com/document/d/1QkbWoT0Ebqy4zZjlCfgvJra2mfR9SJo9RysRKapD_4U/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1QkbWoT0Ebqy4zZjlCfgvJra2mfR9SJo9RysRKapD_4U/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="status-pill pill-implementation">Implementation</span><span class="count">5 tickets</span></div>
+  <table>
+    <thead><tr><th style="width:90px">Ticket</th><th>Summary</th><th style="width:200px">Doc</th><th style="width:120px">Owner</th><th style="width:110px">Platform</th></tr></thead>
+    <tbody>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-325" target="_blank">CCC-325</a></td><td>Remove non-managed Opportunities from Connect to reduce system complexity</td><td><a class="doc-link" href="https://docs.google.com/document/d/17Uyyp8C-l_Wm3igsfgFatzYYaoZJ9JkZiyPxhY5zamA/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/17Uyyp8C-l_Wm3igsfgFatzYYaoZJ9JkZiyPxhY5zamA/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-130" target="_blank">CCC-130</a></td><td>Change OTP method based on integrity check status</td><td><a class="doc-link" href="https://docs.google.com/document/d/1TATIgVWp5J8P_RZnmsjERHKLx_KBFz5Z7aWf-WSWJ5E/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1TATIgVWp5J8P_RZnmsjERHKLx_KBFz5Z7aWf-WSWJ5E/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner empty">—</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-123" target="_blank">CCC-123</a></td><td>Improve the invoice generation and approval process</td><td><a class="doc-link" href="https://docs.google.com/document/d/13PLJQm5njPDrxumWY7AgFdywnbTL66oG9b859WMtsyc/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/13PLJQm5njPDrxumWY7AgFdywnbTL66oG9b859WMtsyc/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Mary Rocheleau">Mary</span></td><td><div class="plat-cell"><span class="plat plat-web">Web</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-117" target="_blank">CCC-117</a></td><td>Account for users updating their phone biometrics in PersonalID to reauthenticate</td><td><a class="doc-link" href="https://docs.google.com/document/d/1Dbx6wJVQJBS8L7o6VxZYts2Du0oml2hW6smQrQMzCCo/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1Dbx6wJVQJBS8L7o6VxZYts2Du0oml2hW6smQrQMzCCo/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner" title="Kimberly Cho">Kimberly</span></td><td><div class="plat-cell"><span class="plat plat-mob">Mobile</span></div></td></tr>
+      <tr><td><a class="ticket-key" href="https://dimagi.atlassian.net/browse/CCC-14" target="_blank">CCC-14</a></td><td>Tray for Push Notifications so a user can revisit them after being sent</td><td><a class="doc-link" href="https://docs.google.com/document/d/1y_Zxl6gP46uvCsKm5WS94ZKbTXLtj_phjRQBboaEPDk/edit" target="_blank" data-doc-url="https://docs.google.com/document/d/1y_Zxl6gP46uvCsKm5WS94ZKbTXLtj_phjRQBboaEPDk/edit"><svg class="doc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="doc-title loading">loading…</span></a></td><td><span class="owner empty">—</span></td><td><div class="plat-cell"><span class="plat plat-mob">Mobile</span></div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+
+<!-- Docs to Review tab -->
+<div id="tab-docs-review" class="tab-panel">
+  <div class="review-toolbar">
+    <button class="btn-add" id="btn-add-review">+ Add new</button>
+  </div>
+  <div id="review-list"></div>
+
+  <div id="completed-section" style="margin-top:48px">
+    <div class="section-header" style="margin-bottom:12px">
+      <span class="status-pill pill-done-review">Review Complete</span>
+      <span class="count" id="completed-count"></span>
+    </div>
+    <div id="completed-list"></div>
+  </div>
+</div>
+</main>
+
+<script>
+const STORAGE_KEY = 'ccc-roadmap-fields';
+function loadData() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } }
+function saveData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+// ── Text editables (Blocking Reviewer) ───────────────────────────────────
+document.querySelectorAll('.editable').forEach(el => {
+  const key = el.dataset.key;
+  const saved = loadData()[key];
+  if (saved) { el.textContent = saved; el.classList.remove('empty'); }
+  else { el.textContent = el.dataset.placeholder; }
+
+  el.addEventListener('focus', () => { if (el.classList.contains('empty')) el.textContent = ''; });
+  el.addEventListener('blur', () => {
+    const val = el.textContent.trim();
+    const data = loadData();
+    if (val) {
+      data[key] = val; el.textContent = val; el.classList.remove('empty');
+      el.classList.add('saved-flash'); setTimeout(() => el.classList.remove('saved-flash'), 400);
+    } else {
+      delete data[key]; el.textContent = el.dataset.placeholder; el.classList.add('empty');
+    }
+    saveData(data);
+  });
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    if (e.key === 'Escape') {
+      const saved = loadData()[key];
+      el.textContent = saved || el.dataset.placeholder;
+      if (!saved) el.classList.add('empty');
+      el.blur();
+    }
+  });
+});
+
+// ── Date inputs ───────────────────────────────────────────────────────────
+document.querySelectorAll('.date-input').forEach(el => {
+  const key = el.dataset.key;
+  const saved = loadData()[key];
+  if (saved) { el.value = saved; el.classList.remove('empty'); }
+
+  el.addEventListener('change', () => {
+    const data = loadData();
+    if (el.value) { data[key] = el.value; el.classList.remove('empty'); }
+    else { delete data[key]; el.classList.add('empty'); }
+    saveData(data);
+  });
+});
+
+// ── Atlassian smartlinks doc title resolution ─────────────────────────────
+const links = [...document.querySelectorAll('[data-doc-url]')];
+const uniqueUrls = [...new Set(links.map(el => el.dataset.docUrl))];
+const spansByUrl = {};
+links.forEach(el => {
+  const url = el.dataset.docUrl;
+  const span = el.querySelector('.doc-title');
+  if (!spansByUrl[url]) spansByUrl[url] = [];
+  spansByUrl[url].push(span);
+});
+
+async function resolveDocTitles() {
+  try {
+    const resp = await fetch('https://api.atlassian.com/object-resolver/resolve/batch', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resourceUrls: uniqueUrls.map(url => ({ resourceUrl: url })) })
+    });
+    if (!resp.ok) throw new Error();
+    const results = await resp.json();
+    results.forEach((result, i) => {
+      const title = result?.body?.data?.title || result?.title || null;
+      (spansByUrl[uniqueUrls[i]] || []).forEach(span => {
+        span.classList.remove('loading');
+        span.textContent = title || 'Open doc';
+        if (!title) span.classList.add('error');
+      });
+    });
+  } catch {
+    Object.values(spansByUrl).flat().forEach(span => { span.textContent = 'Open doc'; span.classList.remove('loading'); });
+  }
+}
+
+resolveDocTitles();
+</script>
+
+<!-- Add/Edit modal -->
+<div class="modal-backdrop hidden" id="modal-backdrop">
+  <div class="modal" id="review-modal">
+    <h2 id="modal-title">Add doc for review</h2>
+    <div class="form-row">
+      <label>Doc title</label>
+      <input type="text" id="field-title" placeholder="e.g. Redesign spec — Opportunity Home">
+    </div>
+    <div class="form-row">
+      <label>Doc URL (optional)</label>
+      <input type="url" id="field-url" placeholder="https://docs.google.com/…">
+    </div>
+    <div class="form-row">
+      <label>Due date</label>
+      <input type="date" id="field-due">
+    </div>
+    <div class="form-row">
+      <label>Requested reviewers</label>
+      <input type="text" id="field-reviewers" placeholder="e.g. Mary, Kim">
+    </div>
+    <div class="form-row">
+      <label>Summary of request</label>
+      <textarea id="field-summary" rows="3" placeholder="What do you need reviewed and why?"></textarea>
+    </div>
+    <div class="form-row">
+      <label>Requester</label>
+      <input type="text" id="field-requester" placeholder="e.g. Mary">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="modal-cancel">Cancel</button>
+      <button class="btn-save" id="modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ─────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).style.display = '';
+  });
+});
+
+// ── Docs to Review ────────────────────────────────────────────────────────
+const REVIEW_KEY = 'ccc-docs-to-review';
+function loadReviews() { try { return JSON.parse(localStorage.getItem(REVIEW_KEY) || '[]'); } catch { return []; } }
+function saveReviews(items) { localStorage.setItem(REVIEW_KEY, JSON.stringify(items)); }
+
+function makeTable(items, idxMap, showComplete) {
+  if (!items.length) return '';
+  const rows = items.map((item, j) => {
+    const i = idxMap[j];
+    const titleHtml = item.url
+      ? `<a href="${escHtml(item.url)}" target="_blank">${escHtml(item.title)}</a>`
+      : escHtml(item.title);
+    const actions = showComplete
+      ? `<button class="btn-icon" onclick="editReview(${i})">Edit</button>
+         <button class="btn-icon btn-complete" onclick="markComplete(${i})" title="Mark as complete">✓</button>
+         <button class="btn-icon delete" onclick="deleteReview(${i})">✕</button>`
+      : `<button class="btn-icon" onclick="reopenReview(${i})" title="Move back to pending">↩</button>
+         <button class="btn-icon delete" onclick="deleteReview(${i})">✕</button>`;
+    return `<tr>
+      <td class="review-title-cell">${titleHtml}</td>
+      <td>${item.due ? escHtml(item.due) : '<span style="color:#bbb">—</span>'}</td>
+      <td>${item.reviewers ? escHtml(item.reviewers) : '<span style="color:#bbb">—</span>'}</td>
+      <td>${item.requester ? escHtml(item.requester) : '<span style="color:#bbb">—</span>'}</td>
+      <td class="review-summary-cell">${item.summary ? escHtml(item.summary) : '<span style="color:#bbb">—</span>'}</td>
+      <td><div class="review-actions">${actions}</div></td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th style="width:200px">Doc</th>
+      <th style="width:110px">Due Date</th>
+      <th style="width:150px">Reviewers</th>
+      <th style="width:120px">Requester</th>
+      <th>Summary</th>
+      <th style="width:100px"></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderReviews() {
+  const items = loadReviews();
+  const pending = [], pendingIdx = [], completed = [], completedIdx = [];
+  items.forEach((item, i) => {
+    if (item.completed) { completed.push(item); completedIdx.push(i); }
+    else { pending.push(item); pendingIdx.push(i); }
+  });
+
+  const list = document.getElementById('review-list');
+  list.innerHTML = pending.length
+    ? makeTable(pending, pendingIdx, true)
+    : '<p class="review-empty">No pending docs — click "+ Add new" to get started.</p>';
+
+  const compList = document.getElementById('completed-list');
+  const compCount = document.getElementById('completed-count');
+  compCount.textContent = completed.length ? `${completed.length} item${completed.length > 1 ? 's' : ''}` : '';
+  compList.innerHTML = completed.length
+    ? makeTable(completed, completedIdx, false)
+    : '<p class="review-empty" style="padding:24px 0">No completed reviews yet.</p>';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Modal open/close
+let editingIdx = null;
+
+function openModal(idx = null) {
+  editingIdx = idx;
+  const items = loadReviews();
+  const item = idx !== null ? items[idx] : {};
+  document.getElementById('modal-title').textContent = idx !== null ? 'Edit doc' : 'Add doc for review';
+  document.getElementById('field-title').value = item.title || '';
+  document.getElementById('field-url').value = item.url || '';
+  document.getElementById('field-due').value = item.due || '';
+  document.getElementById('field-reviewers').value = item.reviewers || '';
+  document.getElementById('field-summary').value = item.summary || '';
+  document.getElementById('field-requester').value = item.requester || '';
+  document.getElementById('modal-backdrop').classList.remove('hidden');
+  document.getElementById('field-title').focus();
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.add('hidden');
+  editingIdx = null;
+}
+
+document.getElementById('btn-add-review').addEventListener('click', () => openModal());
+document.getElementById('modal-cancel').addEventListener('click', closeModal);
+document.getElementById('modal-backdrop').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+document.getElementById('modal-save').addEventListener('click', () => {
+  const title = document.getElementById('field-title').value.trim();
+  if (!title) { document.getElementById('field-title').focus(); return; }
+  const item = {
+    title,
+    url: document.getElementById('field-url').value.trim(),
+    due: document.getElementById('field-due').value,
+    reviewers: document.getElementById('field-reviewers').value.trim(),
+    summary: document.getElementById('field-summary').value.trim(),
+    requester: document.getElementById('field-requester').value.trim(),
+  };
+  const items = loadReviews();
+  if (editingIdx !== null) items[editingIdx] = item;
+  else items.push(item);
+  saveReviews(items);
+  renderReviews();
+  closeModal();
+});
+
+window.editReview = function(i) { openModal(i); };
+window.markComplete = function(i) {
+  const items = loadReviews();
+  items[i].completed = true;
+  saveReviews(items);
+  renderReviews();
+};
+window.reopenReview = function(i) {
+  const items = loadReviews();
+  delete items[i].completed;
+  saveReviews(items);
+  renderReviews();
+};
+window.deleteReview = function(i) {
+  if (!confirm('Remove this doc?')) return;
+  const items = loadReviews();
+  items.splice(i, 1);
+  saveReviews(items);
+  renderReviews();
+};
+
+// Keyboard shortcut: Escape closes modal
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+renderReviews();
+</script>
+
+
+<script>
+// ── Google Identity Services auth ────────────────────────────────────────
+const CLIENT_ID = '331565768762-qcn4e21tp2u10nqt7ns2e1jhjla5sv2p.apps.googleusercontent.com';
+const ALLOWED_DOMAIN = 'dimagi.com';
+
+const gate      = document.getElementById('auth-gate');
+const authError = document.getElementById('auth-error');
+const userBadge = document.getElementById('user-badge');
+const userName  = document.getElementById('user-name');
+const userPhoto = document.getElementById('user-photo');
+
+function parseJwt(token) {
+  try { return JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }
+  catch { return null; }
+}
+
+function signIn(response) {
+  const payload = parseJwt(response.credential);
+  if (!payload || !payload.email.endsWith('@' + ALLOWED_DOMAIN)) {
+    authError.textContent = 'Access is restricted to @dimagi.com accounts.';
+    return;
+  }
+  // Store session
+  sessionStorage.setItem('gsi_user', JSON.stringify({
+    email: payload.email,
+    name: payload.name,
+    picture: payload.picture,
+  }));
+  showApp(payload);
+}
+
+function showApp(user) {
+  gate.classList.add('hidden');
+  userBadge.style.display = 'flex';
+  userName.textContent = user.name || user.email;
+  if (user.picture) { userPhoto.src = user.picture; userPhoto.style.display = ''; }
+  else { userPhoto.style.display = 'none'; }
+}
+
+function signOut() {
+  sessionStorage.removeItem('gsi_user');
+  userBadge.style.display = 'none';
+  gate.classList.remove('hidden');
+  google.accounts.id.revoke(userName.textContent, () => {});
+}
+
+document.getElementById('btn-signout').addEventListener('click', signOut);
+
+// Replace the sign-in button with GSI One Tap + rendered button
+document.getElementById('btn-google-signin').addEventListener('click', () => {
+  google.accounts.id.prompt();
+});
+
+window.addEventListener('load', () => {
+  // Check for existing session
+  const stored = sessionStorage.getItem('gsi_user');
+  if (stored) { showApp(JSON.parse(stored)); return; }
+
+  google.accounts.id.initialize({
+    client_id: CLIENT_ID,
+    callback: signIn,
+    hosted_domain: ALLOWED_DOMAIN,
+  });
+
+  // Render button inside the existing btn-google-signin
+  google.accounts.id.renderButton(
+    document.getElementById('btn-google-signin'),
+    { theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular' }
+  );
+
+  // Also show One Tap prompt
+  google.accounts.id.prompt();
+});
+</script>
+
+</body>
+</html>
