@@ -255,9 +255,9 @@ document.querySelectorAll('.date-input').forEach(el => {
 });
 
 // ── Atlassian OAuth 2.0 (PKCE) ───────────────────────────────────────────
-const ATLASSIAN_CLIENT_ID = 'YOUR_ATLASSIAN_CLIENT_ID'; // ← fill in after app registration
+const ATLASSIAN_CLIENT_ID = '4pvBUKXizARwLAaGwfVKbsYMCadXBtxo';
 const ATLASSIAN_SCOPE = 'read:jira-work offline_access';
-const ATLASSIAN_REDIRECT_URI = window.location.origin + window.location.pathname.replace(/\/$/, '') + '/';
+const ATLASSIAN_REDIRECT_URI = 'https://dimagi-internal.github.io/connect-doc-review/';
 
 function b64url(buf) {
   return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
