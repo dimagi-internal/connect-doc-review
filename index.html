@@ -482,10 +482,34 @@ function normalizeReviewers(reviewers) {
   return reviewers.split(',').map(r => r.trim()).filter(Boolean);
 }
 
+const CHIP_PALETTES = [
+  { bg: '#ede7f6', color: '#4527a0' },
+  { bg: '#e3f2fd', color: '#0d47a1' },
+  { bg: '#e8f5e9', color: '#1b5e20' },
+  { bg: '#fff8e1', color: '#e65100' },
+  { bg: '#fce4ec', color: '#880e4f' },
+  { bg: '#e0f2f1', color: '#004d40' },
+  { bg: '#f3e5f5', color: '#6a1b9a' },
+  { bg: '#e8eaf6', color: '#1a237e' },
+  { bg: '#fbe9e7', color: '#bf360c' },
+  { bg: '#f1f8e9', color: '#33691e' },
+];
+
+function chipPalette(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+  return CHIP_PALETTES[Math.abs(h) % CHIP_PALETTES.length];
+}
+
+function chipStyle(name) {
+  const { bg, color } = chipPalette(name);
+  return `background:${bg};color:${color}`;
+}
+
 function renderReviewerChips(reviewers) {
   const names = normalizeReviewers(reviewers);
   if (!names.length) return '<span style="color:#bbb">—</span>';
-  return `<div class="reviewer-chips">${names.map(n => `<span class="reviewer-chip-sm">${escHtml(n)}</span>`).join('')}</div>`;
+  return `<div class="reviewer-chips">${names.map(n => `<span class="reviewer-chip-sm" style="${chipStyle(n)}">${escHtml(n)}</span>`).join('')}</div>`;
 }
 
 // ── Chip input state ──────────────────────────────────────────────────────
@@ -498,7 +522,8 @@ function renderModalChips() {
   currentChips.forEach((name, i) => {
     const chip = document.createElement('span');
     chip.className = 'reviewer-chip';
-    chip.innerHTML = `${escHtml(name)}<button class="chip-remove" type="button" aria-label="Remove">×</button>`;
+    chip.setAttribute('style', chipStyle(name));
+    chip.innerHTML = `${escHtml(name)}<button class="chip-remove" type="button" aria-label="Remove" style="color:inherit;opacity:0.6">×</button>`;
     chip.querySelector('.chip-remove').addEventListener('click', () => {
       currentChips.splice(i, 1);
       renderModalChips();
