@@ -254,8 +254,84 @@ document.querySelectorAll('.date-input').forEach(el => {
   });
 });
 
+// ── Atlassian OAuth 2.0 (PKCE) ───────────────────────────────────────────
+const ATLASSIAN_CLIENT_ID = 'YOUR_ATLASSIAN_CLIENT_ID'; // ← fill in after app registration
+const ATLASSIAN_SCOPE = 'read:jira-work offline_access';
+const ATLASSIAN_REDIRECT_URI = window.location.origin + window.location.pathname.replace(/\/$/, '') + '/';
+
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function randomString(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a); }
+async function codeChallenge(verifier) {
+  return b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+}
+
+async function startAtlassianOAuth() {
+  const verifier = randomString(48);
+  const challenge = await codeChallenge(verifier);
+  const state = randomString(16);
+  sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('oauth_state', state);
+  const params = new URLSearchParams({ audience:'api.atlassian.com', client_id:ATLASSIAN_CLIENT_ID,
+    scope:ATLASSIAN_SCOPE, redirect_uri:ATLASSIAN_REDIRECT_URI, state,
+    response_type:'code', prompt:'consent', code_challenge:challenge, code_challenge_method:'S256' });
+  window.location.href = 'https://auth.atlassian.com/authorize?' + params;
+}
+window.startAtlassianOAuth = startAtlassianOAuth;
+
+async function exchangeOAuthCode(code, state) {
+  if (state !== sessionStorage.getItem('oauth_state')) throw new Error('OAuth state mismatch');
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  const resp = await fetch('https://auth.atlassian.com/oauth/token', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ grant_type:'authorization_code', client_id:ATLASSIAN_CLIENT_ID,
+      code, redirect_uri:ATLASSIAN_REDIRECT_URI, code_verifier:verifier }),
+  });
+  if (!resp.ok) throw new Error('Token exchange failed');
+  const { access_token, refresh_token, expires_in } = await resp.json();
+  localStorage.setItem('atlassian_token', JSON.stringify({
+    access_token, refresh_token, expires_at: Date.now() + expires_in * 1000,
+  }));
+  sessionStorage.removeItem('pkce_verifier');
+  sessionStorage.removeItem('oauth_state');
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
+async function getValidToken() {
+  let stored;
+  try { stored = JSON.parse(localStorage.getItem('atlassian_token') || 'null'); } catch { return null; }
+  if (!stored) return null;
+  if (Date.now() < stored.expires_at - 60000) return stored.access_token;
+  if (!stored.refresh_token) { localStorage.removeItem('atlassian_token'); return null; }
+  try {
+    const resp = await fetch('https://auth.atlassian.com/oauth/token', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ grant_type:'refresh_token', client_id:ATLASSIAN_CLIENT_ID, refresh_token:stored.refresh_token }),
+    });
+    if (!resp.ok) throw new Error();
+    const { access_token, refresh_token, expires_in } = await resp.json();
+    localStorage.setItem('atlassian_token', JSON.stringify({
+      access_token, refresh_token: refresh_token || stored.refresh_token, expires_at: Date.now() + expires_in * 1000,
+    }));
+    return access_token;
+  } catch { localStorage.removeItem('atlassian_token'); return null; }
+}
+
+async function getCloudId(token) {
+  let cloudId = localStorage.getItem('atlassian_cloud_id');
+  if (cloudId) return cloudId;
+  const resp = await fetch('https://api.atlassian.com/oauth/token/accessible-resources',
+    { headers:{ Authorization:`Bearer ${token}`, Accept:'application/json' } });
+  if (!resp.ok) throw new Error('Could not fetch Atlassian sites');
+  const sites = await resp.json();
+  const site = sites.find(s => s.url.includes('dimagi')) || sites[0];
+  if (!site) throw new Error('No accessible Atlassian site found');
+  localStorage.setItem('atlassian_cloud_id', site.id);
+  return site.id;
+}
+
 // ── Jira Design Docs sync ─────────────────────────────────────────────────
-const JIRA_BASE = 'https://dimagi.atlassian.net';
 const JIRA_PROJECT = 'CCC';
 const JIRA_CACHE_KEY = 'ccc-jira-issues-cache';
 const JIRA_TTL_MS = 24 * 60 * 60 * 1000;
@@ -382,6 +458,12 @@ function resolveRenderedDocTitles() {
   });
 }
 
+function showConnectPrompt() {
+  document.getElementById('spec-docs-content').innerHTML =
+    `<p class="review-empty">Connect your Atlassian account to load live Jira tickets.<br><br>
+     <button class="btn-add" onclick="startAtlassianOAuth()" style="margin:0 auto;display:inline-block">Connect to Jira</button></p>`;
+}
+
 async function fetchAndRenderSpecDocs(force = false) {
   const btn = document.getElementById('btn-refresh-jira');
   if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
@@ -398,10 +480,20 @@ async function fetchAndRenderSpecDocs(force = false) {
     } catch {}
   }
 
+  const token = await getValidToken();
+  if (!token) {
+    showConnectPrompt();
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh from Jira'; }
+    return;
+  }
+
   try {
-    // Discover custom field IDs for Platform and Documents
-    const fieldsResp = await fetch(`${JIRA_BASE}/rest/api/3/field`, { credentials: 'include' });
-    if (!fieldsResp.ok) throw new Error(`Cannot reach Jira (${fieldsResp.status}). Make sure you're logged into Atlassian.`);
+    const cloudId = await getCloudId(token);
+    const apiBase = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3`;
+    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+
+    const fieldsResp = await fetch(`${apiBase}/field`, { headers });
+    if (!fieldsResp.ok) throw new Error(`Field fetch failed (${fieldsResp.status})`);
     const allFields = await fieldsResp.json();
     const platformFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'platform')?.id;
     const documentsFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'documents')?.id;
@@ -410,8 +502,8 @@ async function fetchAndRenderSpecDocs(force = false) {
     let allIssues = [], startAt = 0;
     while (true) {
       const searchResp = await fetch(
-        `${JIRA_BASE}/rest/api/3/search?jql=project%3D${JIRA_PROJECT}&fields=${fieldIds}&maxResults=100&startAt=${startAt}`,
-        { credentials: 'include' }
+        `${apiBase}/search?jql=project%3D${JIRA_PROJECT}&fields=${fieldIds}&maxResults=100&startAt=${startAt}`,
+        { headers }
       );
       if (!searchResp.ok) throw new Error(`Jira search failed (${searchResp.status})`);
       const data = await searchResp.json();
@@ -427,7 +519,7 @@ async function fetchAndRenderSpecDocs(force = false) {
     updateRefreshLabel(fetchedAt);
   } catch (err) {
     document.getElementById('spec-docs-content').innerHTML =
-      `<p class="review-empty" style="color:#dc2626">Could not load Jira data: ${escHtml(err.message)}</p>`;
+      `<p class="review-empty" style="color:#dc2626">Could not load Jira data: ${err.message}</p>`;
   }
 
   if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh from Jira'; }
@@ -435,7 +527,15 @@ async function fetchAndRenderSpecDocs(force = false) {
 
 document.getElementById('btn-refresh-jira').addEventListener('click', () => fetchAndRenderSpecDocs(true));
 
-fetchAndRenderSpecDocs();
+// Handle OAuth callback (code in URL) then load normally
+(async () => {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code'), state = params.get('state');
+  if (code && state) {
+    try { await exchangeOAuthCode(code, state); } catch (e) { console.error('OAuth error:', e); }
+  }
+  fetchAndRenderSpecDocs();
+})();
 </script>
 
 <!-- Add/Edit modal -->
