@@ -447,7 +447,7 @@ function renderReviews() {
   // Populate filter dropdown with unique reviewers from all pending items
   const filterEl = document.getElementById('filter-reviewer');
   const currentFilter = filterEl.value;
-  const allReviewers = [...new Set(pending.flatMap(item => normalizeReviewers(item.reviewers)))].sort();
+  const allReviewers = [...new Set(items.flatMap(item => normalizeReviewers(item.reviewers)))].sort();
   filterEl.innerHTML = '<option value="">All reviewers</option>' +
     allReviewers.map(r => `<option value="${escHtml(r)}"${r === currentFilter ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
 
