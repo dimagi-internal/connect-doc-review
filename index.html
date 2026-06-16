@@ -256,7 +256,7 @@ document.querySelectorAll('.date-input').forEach(el => {
 
 // ── Atlassian OAuth 2.0 (PKCE) ───────────────────────────────────────────
 const ATLASSIAN_CLIENT_ID = '4pvBUKXizARwLAaGwfVKbsYMCadXBtxo';
-const ATLASSIAN_SCOPE = 'read:jira-work offline_access';
+const ATLASSIAN_SCOPE = 'read:jira-work';
 const ATLASSIAN_REDIRECT_URI = 'https://dimagi-internal.github.io/connect-doc-review/';
 
 function b64url(buf) {
@@ -532,7 +532,15 @@ document.getElementById('btn-refresh-jira').addEventListener('click', () => fetc
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code'), state = params.get('state');
   if (code && state) {
-    try { await exchangeOAuthCode(code, state); } catch (e) { console.error('OAuth error:', e); }
+    try {
+      await exchangeOAuthCode(code, state);
+    } catch (e) {
+      console.error('OAuth error:', e);
+      document.getElementById('spec-docs-content').innerHTML =
+        `<p class="review-empty" style="color:#dc2626">Jira connection failed: ${e.message}<br><br>
+         <button class="btn-add" onclick="startAtlassianOAuth()" style="margin:0 auto;display:inline-block">Try again</button></p>`;
+      return;
+    }
   }
   fetchAndRenderSpecDocs();
 })();
