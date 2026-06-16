@@ -19,11 +19,17 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
     }
+    // Accept POST; treat anything else as a debug probe
     if (request.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405 });
+      return new Response(JSON.stringify({ error: 'method_not_allowed', method: request.method }), {
+        status: 405, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+      });
     }
 
-    const { code, code_verifier } = await request.json();
+    const body = await request.text();
+    let code, code_verifier;
+    try { ({ code, code_verifier } = JSON.parse(body)); }
+    catch { return new Response(JSON.stringify({ error: 'invalid_json', body }), { status: 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }); }
 
     const upstream = await fetch('https://auth.atlassian.com/oauth/token', {
       method: 'POST',
@@ -38,8 +44,8 @@ export default {
       }),
     });
 
-    const body = await upstream.text();
-    return new Response(body, {
+    const upstreamBody = await upstream.text();
+    return new Response(upstreamBody, {
       status: upstream.status,
       headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
     });
