@@ -507,8 +507,11 @@ async function fetchAndRenderSpecDocs(force = false) {
     const fieldIds = ['summary', 'status', 'assignee', platformFieldId, documentsFieldId].filter(Boolean).join(',');
     let allIssues = [], startAt = 0;
     while (true) {
-      const searchUrl = `${apiBase}/search?jql=project%3D${JIRA_PROJECT}&fields=${fieldIds}&maxResults=100&startAt=${startAt}`;
-      const searchResp = await fetch(searchUrl, { headers });
+      const searchResp = await fetch(`${apiBase}/search`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jql: `project = ${JIRA_PROJECT}`, fields: fieldIds.split(','), maxResults: 100, startAt }),
+      });
       if (!searchResp.ok) {
         const errBody = await searchResp.json().catch(() => ({}));
         throw new Error(`Jira search failed (${searchResp.status}): ${JSON.stringify(errBody).slice(0, 200)}`);
