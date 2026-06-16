@@ -376,7 +376,7 @@ function extractPlatforms(val) {
 function renderSpecDocs({ issues, platformFieldId, documentsFieldId }) {
   const byStatus = {};
   issues.forEach(issue => {
-    const status = issue.fields.status?.name || 'Other';
+    const status = issue.fields?.status?.name || 'Other';
     (byStatus[status] = byStatus[status] || []).push(issue);
   });
 
@@ -390,8 +390,8 @@ function renderSpecDocs({ issues, platformFieldId, documentsFieldId }) {
 
     const rows = group.map(issue => {
       const key = issue.key;
-      const summary = issue.fields.summary || '';
-      const assignee = issue.fields.assignee;
+      const summary = issue.fields?.summary || '';
+      const assignee = issue.fields?.assignee;
       const ownerName = assignee?.displayName || '';
       const ownerShort = ownerName.split(' ')[0];
       const platforms = extractPlatforms(platformFieldId ? issue.fields[platformFieldId] : null);
@@ -504,9 +504,10 @@ async function fetchAndRenderSpecDocs(force = false) {
     const platformFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'platform')?.id;
     const documentsFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'documents')?.id;
 
+    const fields = ['summary', 'status', 'assignee', platformFieldId, documentsFieldId].filter(Boolean);
     let allIssues = [], nextPageToken;
     while (true) {
-      const body = { jql: `project = ${JIRA_PROJECT}`, maxResults: 50 };
+      const body = { jql: `project = ${JIRA_PROJECT}`, fields, maxResults: 100 };
       if (nextPageToken) body.nextPageToken = nextPageToken;
       const searchResp = await fetch(`${apiBase}/search/jql`, {
         method: 'POST',
