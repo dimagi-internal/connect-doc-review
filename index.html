@@ -450,7 +450,8 @@ function openModal(idx = null) {
   document.getElementById('field-due').value = item.due || '';
   document.getElementById('field-reviewers').value = item.reviewers || '';
   document.getElementById('field-summary').value = item.summary || '';
-  document.getElementById('field-requester').value = item.requester || '';
+  const currentUser = idx === null ? JSON.parse(sessionStorage.getItem('gsi_user') || '{}') : {};
+  document.getElementById('field-requester').value = item.requester || currentUser.name || '';
   document.getElementById('modal-backdrop').classList.remove('hidden');
   document.getElementById('field-title').focus();
 }
