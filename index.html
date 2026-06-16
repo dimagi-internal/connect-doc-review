@@ -504,10 +504,9 @@ async function fetchAndRenderSpecDocs(force = false) {
     const platformFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'platform')?.id;
     const documentsFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'documents')?.id;
 
-    const fields = ['summary', 'status', 'assignee', platformFieldId, documentsFieldId].filter(Boolean);
     let allIssues = [], nextPageToken;
     while (true) {
-      const body = { jql: `project = ${JIRA_PROJECT}`, fields, maxResults: 100 };
+      const body = { jql: `project = ${JIRA_PROJECT}`, maxResults: 50 };
       if (nextPageToken) body.nextPageToken = nextPageToken;
       const searchResp = await fetch(`${apiBase}/search/jql`, {
         method: 'POST',
