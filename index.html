@@ -507,7 +507,7 @@ async function fetchAndRenderSpecDocs(force = false) {
     const fieldIds = ['summary', 'status', 'assignee', platformFieldId, documentsFieldId].filter(Boolean).join(',');
     let allIssues = [], startAt = 0;
     while (true) {
-      const searchResp = await fetch(`${apiBase}/search`, {
+      const searchResp = await fetch(`${apiBase}/search/jql`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ jql: `project = ${JIRA_PROJECT}`, fields: fieldIds.split(','), maxResults: 100, startAt }),
