@@ -75,7 +75,23 @@
   .tab-btn.active { background: #ede7f6; color: #4527a0; }
 
   /* Docs to Review */
-  .review-toolbar { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+  .review-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .review-filter { display: flex; align-items: center; gap: 8px; }
+  .filter-label { font-size: 0.8rem; color: #6b7280; }
+  .filter-select { font-family: inherit; font-size: 0.8rem; border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 10px; color: #374151; background: #fff; cursor: pointer; }
+  .filter-select:focus { outline: none; border-color: #5c6bc0; }
+
+  /* Chip input (modal) */
+  .chip-input-container { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 8px; cursor: text; min-height: 38px; background: #fff; transition: border 0.1s; }
+  .chip-input-container:focus-within { border-color: #5c6bc0; }
+  .chip-text-input { border: none; outline: none; font-family: inherit; font-size: 0.875rem; min-width: 100px; flex: 1; padding: 1px 0; }
+  .reviewer-chip { display: inline-flex; align-items: center; gap: 3px; background: #ede7f6; color: #4527a0; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 12px; white-space: nowrap; }
+  .chip-remove { background: none; border: none; cursor: pointer; color: #7c4dff; font-size: 0.85rem; padding: 0; line-height: 1; }
+  .chip-remove:hover { color: #4527a0; }
+
+  /* Reviewer chips in table */
+  .reviewer-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+  .reviewer-chip-sm { font-size: 0.68rem; font-weight: 600; padding: 2px 7px; border-radius: 10px; background: #ede7f6; color: #4527a0; white-space: nowrap; }
   .btn-add { background: #5c6bc0; color: #fff; border: none; cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500; padding: 8px 16px; border-radius: 6px; transition: background 0.15s; }
   .btn-add:hover { background: #4527a0; }
 
@@ -227,6 +243,12 @@
 <!-- Docs to Review tab -->
 <div id="tab-docs-review" class="tab-panel">
   <div class="review-toolbar">
+    <div class="review-filter">
+      <label class="filter-label" for="filter-reviewer">Filter by reviewer:</label>
+      <select class="filter-select" id="filter-reviewer">
+        <option value="">All reviewers</option>
+      </select>
+    </div>
     <button class="btn-add" id="btn-add-review">+ Add new</button>
   </div>
   <div id="review-list"></div>
@@ -344,7 +366,9 @@ resolveDocTitles();
     </div>
     <div class="form-row">
       <label>Requested reviewers</label>
-      <input type="text" id="field-reviewers" placeholder="e.g. Mary, Kim">
+      <div class="chip-input-container" id="reviewers-chip-container">
+        <input class="chip-text-input" id="field-reviewers-input" placeholder="Type a name, press Enter or comma…">
+      </div>
     </div>
     <div class="form-row">
       <label>Summary of request</label>
@@ -393,7 +417,7 @@ function makeTable(items, idxMap, showComplete) {
     return `<tr>
       <td class="review-title-cell">${titleHtml}</td>
       <td>${item.due ? escHtml(item.due) : '<span style="color:#bbb">—</span>'}</td>
-      <td>${item.reviewers ? escHtml(item.reviewers) : '<span style="color:#bbb">—</span>'}</td>
+      <td>${renderReviewerChips(item.reviewers)}</td>
       <td>${item.requester ? escHtml(item.requester) : '<span style="color:#bbb">—</span>'}</td>
       <td class="review-summary-cell">${item.summary ? escHtml(item.summary) : '<span style="color:#bbb">—</span>'}</td>
       <td><div class="review-actions">${actions}</div></td>
@@ -420,9 +444,24 @@ function renderReviews() {
     else { pending.push(item); pendingIdx.push(i); }
   });
 
+  // Populate filter dropdown with unique reviewers from all pending items
+  const filterEl = document.getElementById('filter-reviewer');
+  const currentFilter = filterEl.value;
+  const allReviewers = [...new Set(pending.flatMap(item => normalizeReviewers(item.reviewers)))].sort();
+  filterEl.innerHTML = '<option value="">All reviewers</option>' +
+    allReviewers.map(r => `<option value="${escHtml(r)}"${r === currentFilter ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
+
+  // Apply filter
+  const filtered = currentFilter
+    ? pending.filter((item, j) => normalizeReviewers(item.reviewers).includes(currentFilter))
+    : pending;
+  const filteredIdx = currentFilter
+    ? pendingIdx.filter((_, j) => normalizeReviewers(pending[j].reviewers).includes(currentFilter))
+    : pendingIdx;
+
   const list = document.getElementById('review-list');
-  list.innerHTML = pending.length
-    ? makeTable(pending, pendingIdx, true)
+  list.innerHTML = filtered.length
+    ? makeTable(filtered, filteredIdx, true)
     : '<p class="review-empty">No pending docs — click "+ Add new" to get started.</p>';
 
   const compList = document.getElementById('completed-list');
@@ -437,6 +476,62 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function normalizeReviewers(reviewers) {
+  if (!reviewers) return [];
+  if (Array.isArray(reviewers)) return reviewers;
+  return reviewers.split(',').map(r => r.trim()).filter(Boolean);
+}
+
+function renderReviewerChips(reviewers) {
+  const names = normalizeReviewers(reviewers);
+  if (!names.length) return '<span style="color:#bbb">—</span>';
+  return `<div class="reviewer-chips">${names.map(n => `<span class="reviewer-chip-sm">${escHtml(n)}</span>`).join('')}</div>`;
+}
+
+// ── Chip input state ──────────────────────────────────────────────────────
+let currentChips = [];
+
+function renderModalChips() {
+  const container = document.getElementById('reviewers-chip-container');
+  const input = document.getElementById('field-reviewers-input');
+  container.querySelectorAll('.reviewer-chip').forEach(el => el.remove());
+  currentChips.forEach((name, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'reviewer-chip';
+    chip.innerHTML = `${escHtml(name)}<button class="chip-remove" type="button" aria-label="Remove">×</button>`;
+    chip.querySelector('.chip-remove').addEventListener('click', () => {
+      currentChips.splice(i, 1);
+      renderModalChips();
+    });
+    container.insertBefore(chip, input);
+  });
+}
+
+function addChip(name) {
+  const trimmed = name.trim();
+  if (trimmed && !currentChips.includes(trimmed)) {
+    currentChips.push(trimmed);
+    renderModalChips();
+  }
+}
+
+document.getElementById('field-reviewers-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    addChip(e.target.value);
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && currentChips.length) {
+    currentChips.pop();
+    renderModalChips();
+  }
+});
+document.getElementById('field-reviewers-input').addEventListener('blur', e => {
+  if (e.target.value.trim()) { addChip(e.target.value); e.target.value = ''; }
+});
+document.getElementById('reviewers-chip-container').addEventListener('click', () => {
+  document.getElementById('field-reviewers-input').focus();
+});
+
 // Modal open/close
 let editingIdx = null;
 
@@ -448,10 +543,12 @@ function openModal(idx = null) {
   document.getElementById('field-title').value = item.title || '';
   document.getElementById('field-url').value = item.url || '';
   document.getElementById('field-due').value = item.due || '';
-  document.getElementById('field-reviewers').value = item.reviewers || '';
   document.getElementById('field-summary').value = item.summary || '';
   const currentUser = idx === null ? JSON.parse(sessionStorage.getItem('gsi_user') || '{}') : {};
   document.getElementById('field-requester').value = item.requester || currentUser.name || '';
+  currentChips = normalizeReviewers(item.reviewers);
+  renderModalChips();
+  document.getElementById('field-reviewers-input').value = '';
   document.getElementById('modal-backdrop').classList.remove('hidden');
   document.getElementById('field-title').focus();
 }
@@ -461,6 +558,7 @@ function closeModal() {
   editingIdx = null;
 }
 
+document.getElementById('filter-reviewer').addEventListener('change', renderReviews);
 document.getElementById('btn-add-review').addEventListener('click', () => openModal());
 document.getElementById('modal-cancel').addEventListener('click', closeModal);
 document.getElementById('modal-backdrop').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
@@ -472,7 +570,7 @@ document.getElementById('modal-save').addEventListener('click', () => {
     title,
     url: document.getElementById('field-url').value.trim(),
     due: document.getElementById('field-due').value,
-    reviewers: document.getElementById('field-reviewers').value.trim(),
+    reviewers: [...currentChips],
     summary: document.getElementById('field-summary').value.trim(),
     requester: document.getElementById('field-requester').value.trim(),
   };
