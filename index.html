@@ -173,6 +173,10 @@
 </header>
 <main>
 <div id="tab-spec-docs" class="tab-panel" style="display:none">
+<div class="review-toolbar" style="margin-bottom:24px;">
+  <span id="doc-titles-last-refresh" style="font-size:0.78rem;color:#9ca3af;"></span>
+  <button class="btn-add" id="btn-refresh-jira">↻ Refresh from Jira</button>
+</div>
 
 <div class="section">
   <div class="section-header"><span class="status-pill pill-prioritized">Prioritized</span><span class="count">1 ticket</span></div>
@@ -313,6 +317,9 @@ document.querySelectorAll('.date-input').forEach(el => {
 });
 
 // ── Atlassian smartlinks doc title resolution ─────────────────────────────
+const DOC_TITLES_CACHE_KEY = 'ccc-doc-titles-cache';
+const DOC_TITLES_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 const links = [...document.querySelectorAll('[data-doc-url]')];
 const uniqueUrls = [...new Set(links.map(el => el.dataset.docUrl))];
 const spansByUrl = {};
@@ -323,7 +330,42 @@ links.forEach(el => {
   spansByUrl[url].push(span);
 });
 
-async function resolveDocTitles() {
+function applyDocTitles(titlesByUrl) {
+  uniqueUrls.forEach(url => {
+    const title = titlesByUrl[url];
+    (spansByUrl[url] || []).forEach(span => {
+      span.classList.remove('loading');
+      span.textContent = title || 'Open doc';
+      if (!title) span.classList.add('error');
+    });
+  });
+}
+
+function updateRefreshLabel(fetchedAt) {
+  const el = document.getElementById('doc-titles-last-refresh');
+  if (!el) return;
+  if (!fetchedAt) { el.textContent = ''; return; }
+  const d = new Date(fetchedAt);
+  el.textContent = `Last refreshed: ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+async function resolveDocTitles(force = false) {
+  const btn = document.getElementById('btn-refresh-jira');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
+
+  // Use cache if fresh and not forcing
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(DOC_TITLES_CACHE_KEY) || 'null');
+      if (cached && Date.now() - cached.fetchedAt < DOC_TITLES_TTL_MS) {
+        applyDocTitles(cached.titles);
+        updateRefreshLabel(cached.fetchedAt);
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh from Jira'; }
+        return;
+      }
+    } catch {}
+  }
+
   try {
     const resp = await fetch('https://api.atlassian.com/object-resolver/resolve/batch', {
       method: 'POST', credentials: 'include',
@@ -332,18 +374,22 @@ async function resolveDocTitles() {
     });
     if (!resp.ok) throw new Error();
     const results = await resp.json();
+    const titlesByUrl = {};
     results.forEach((result, i) => {
-      const title = result?.body?.data?.title || result?.title || null;
-      (spansByUrl[uniqueUrls[i]] || []).forEach(span => {
-        span.classList.remove('loading');
-        span.textContent = title || 'Open doc';
-        if (!title) span.classList.add('error');
-      });
+      titlesByUrl[uniqueUrls[i]] = result?.body?.data?.title || result?.title || null;
     });
+    const fetchedAt = Date.now();
+    localStorage.setItem(DOC_TITLES_CACHE_KEY, JSON.stringify({ titles: titlesByUrl, fetchedAt }));
+    applyDocTitles(titlesByUrl);
+    updateRefreshLabel(fetchedAt);
   } catch {
     Object.values(spansByUrl).flat().forEach(span => { span.textContent = 'Open doc'; span.classList.remove('loading'); });
   }
+
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh from Jira'; }
 }
+
+document.getElementById('btn-refresh-jira').addEventListener('click', () => resolveDocTitles(true));
 
 resolveDocTitles();
 </script>
