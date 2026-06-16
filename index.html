@@ -492,6 +492,8 @@ async function fetchAndRenderSpecDocs(force = false) {
   }
 
   try {
+    // Always re-fetch cloud ID on a forced refresh in case it's stale
+    if (force) localStorage.removeItem('atlassian_cloud_id');
     const cloudId = await getCloudId(token);
     const apiBase = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3`;
     const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
@@ -505,11 +507,12 @@ async function fetchAndRenderSpecDocs(force = false) {
     const fieldIds = ['summary', 'status', 'assignee', platformFieldId, documentsFieldId].filter(Boolean).join(',');
     let allIssues = [], startAt = 0;
     while (true) {
-      const searchResp = await fetch(
-        `${apiBase}/search?jql=project%3D${JIRA_PROJECT}&fields=${fieldIds}&maxResults=100&startAt=${startAt}`,
-        { headers }
-      );
-      if (!searchResp.ok) throw new Error(`Jira search failed (${searchResp.status})`);
+      const searchUrl = `${apiBase}/search?jql=project%3D${JIRA_PROJECT}&fields=${fieldIds}&maxResults=100&startAt=${startAt}`;
+      const searchResp = await fetch(searchUrl, { headers });
+      if (!searchResp.ok) {
+        const errBody = await searchResp.json().catch(() => ({}));
+        throw new Error(`Jira search failed (${searchResp.status}): ${JSON.stringify(errBody).slice(0, 200)}`);
+      }
       const data = await searchResp.json();
       allIssues = allIssues.concat(data.issues);
       if (allIssues.length >= data.total || data.issues.length < 100) break;
