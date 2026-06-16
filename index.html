@@ -376,7 +376,7 @@ resolveDocTitles();
     </div>
     <div class="form-row">
       <label>Requester</label>
-      <input type="text" id="field-requester" placeholder="e.g. Mary">
+      <input type="text" id="field-requester" readonly style="background:#f0f2f5;color:#6b7280;cursor:default;">
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" id="modal-cancel">Cancel</button>
@@ -544,8 +544,8 @@ function openModal(idx = null) {
   document.getElementById('field-url').value = item.url || '';
   document.getElementById('field-due').value = item.due || '';
   document.getElementById('field-summary').value = item.summary || '';
-  const currentUser = idx === null ? JSON.parse(sessionStorage.getItem('gsi_user') || '{}') : {};
-  document.getElementById('field-requester').value = item.requester || currentUser.name || '';
+  const currentUser = JSON.parse(sessionStorage.getItem('gsi_user') || '{}');
+  document.getElementById('field-requester').value = currentUser.name || '';
   currentChips = normalizeReviewers(item.reviewers);
   renderModalChips();
   document.getElementById('field-reviewers-input').value = '';
