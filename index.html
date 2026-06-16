@@ -504,13 +504,15 @@ async function fetchAndRenderSpecDocs(force = false) {
     const platformFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'platform')?.id;
     const documentsFieldId = allFields.find(f => f.custom && f.name.toLowerCase() === 'documents')?.id;
 
-    const fieldIds = ['summary', 'status', 'assignee', platformFieldId, documentsFieldId].filter(Boolean).join(',');
-    let allIssues = [], startAt = 0;
+    const fields = ['summary', 'status', 'assignee', platformFieldId, documentsFieldId].filter(Boolean);
+    let allIssues = [], nextPageToken;
     while (true) {
+      const body = { jql: `project = ${JIRA_PROJECT}`, fields, maxResults: 100 };
+      if (nextPageToken) body.nextPageToken = nextPageToken;
       const searchResp = await fetch(`${apiBase}/search/jql`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jql: `project = ${JIRA_PROJECT}`, fields: fieldIds.split(','), maxResults: 100, startAt }),
+        body: JSON.stringify(body),
       });
       if (!searchResp.ok) {
         const errBody = await searchResp.json().catch(() => ({}));
@@ -518,8 +520,8 @@ async function fetchAndRenderSpecDocs(force = false) {
       }
       const data = await searchResp.json();
       allIssues = allIssues.concat(data.issues);
-      if (allIssues.length >= data.total || data.issues.length < 100) break;
-      startAt += 100;
+      if (!data.nextPageToken || data.issues.length < 100) break;
+      nextPageToken = data.nextPageToken;
     }
 
     const fetchedAt = Date.now();
