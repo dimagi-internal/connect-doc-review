@@ -258,7 +258,7 @@ document.querySelectorAll('.date-input').forEach(el => {
 const ATLASSIAN_CLIENT_ID = '4pvBUKXizARwLAaGwfVKbsYMCadXBtxo';
 const ATLASSIAN_SCOPE = 'read:jira-work';
 const ATLASSIAN_REDIRECT_URI = 'https://dimagi-internal.github.io/connect-doc-review/';
-const TOKEN_PROXY_URL = 'YOUR_WORKER_URL'; // ← fill in after deploying worker.js
+const TOKEN_PROXY_URL = 'https://atlassianclientsecret.mrocheleau.workers.dev';
 
 function b64url(buf) {
   return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
