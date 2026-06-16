@@ -461,7 +461,7 @@ function renderReviews() {
 
   const list = document.getElementById('review-list');
   list.innerHTML = filtered.length
-    ? makeTable(filtered, filteredIdx, true)
+    ? `<div class="section-header" style="margin-bottom:12px"><span class="status-pill pill-defining">Docs under Review</span></div>` + makeTable(filtered, filteredIdx, true)
     : '<p class="review-empty">No pending docs — click "+ Add new" to get started.</p>';
 
   const compList = document.getElementById('completed-list');
